@@ -7,10 +7,10 @@ Cross-platform remote Python interpreter
 
 """
 
-from SocketServer import BaseServer
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SimpleHTTPServer import SimpleHTTPRequestHandler
 from StringIO import StringIO
+from string import Template
+from time import time
 import cgi
 import sys
 
@@ -31,6 +31,15 @@ HTTPS_PORT = 4433
 import BaseHTTPServer, SimpleHTTPServer
 import ssl
 
+index = Template("""
+    <form name="input" action="/" method="post">
+    Code: 
+    <textarea name="code" rows="5" cols="60">$code</textarea>
+    <input type="hidden" name="format" value="html"/>
+    <input type="submit" value="Submit" />
+    </form>
+""")
+
 class PostHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
@@ -41,12 +50,7 @@ class PostHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html")
         self.end_headers()
         self.wfile.write("<html><head><title>Pyresh</title></head>")
-        self.wfile.write("""
-        <form name="input" action="/" method="post">
-        Code: <input type="text" name="code" />
-        <input type="hidden" name="format" value="html"/>
-        <input type="submit" value="Submit" />
-        </form>""")
+        self.wfile.write(index.substitute(dict(code='')))
         self.wfile.write("</body></html>")
 
 
@@ -64,8 +68,16 @@ class PostHandler(BaseHTTPRequestHandler):
         )
         code = post.getfirst("code","")
         fmt = post.getfirst("format","simple")
-        print "Running: '%s' %s" % (code, fmt)
+        code = code.split('\n')
+        code = [s.rstrip() for s in code if s.rstrip()]
+        code = '\n'.join(code)
 
+        print "Running:\n---\n%s\n---\n format: %s" % (code, fmt)
+
+        if fmt == "html":
+            self.wfile.write("<html><body>%s" % index.substitute(
+                dict(code=code)
+            ))
         # Intercept stdout/stderr
         stdout = StringIO()
         stderr = StringIO()
@@ -73,28 +85,49 @@ class PostHandler(BaseHTTPRequestHandler):
         sys.stderr = stderr
 
         try:
+            success = False
             exec code
+            stdout = stdout.getvalue()
+            stderr = stderr.getvalue()
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
             # Succesful response 
             self.send_response(200)
             self.end_headers()
-            
             #TODO: fork and reply to the user while running the code
             
             if fmt == "simple":
-                self.wfile.write(stdout.getvalue())
+                self.wfile.write(stdout)
             elif fmt == "html":
-                html = "<html><body><h4>Output</h4><pre>" \
-                    "%s</pre><pre>%s</pre></body></html>" % \
-                    (stdout.getvalue(),stderr.getvalue())
+                html = "<h4>Output</h4><pre>" \
+                    "%s</pre><h4>Stderr</h4><pre>%s</pre></body></html>" % \
+                    (stdout, stderr)
                 self.wfile.write(html)
             else:
                 raise NotImplementedError
-        
+            success = True
+
         except Exception, e:
-            # Execution failurie
-            self.send_response(400)
-            self.wfile.write(str(e))
         
+            stdout = stdout.getvalue()
+            stderr = stderr.getvalue()
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
+            print "Exception: %s" % str(e)
+            # Execution failure
+            self.send_response(200)
+        
+            if fmt == "simple":
+                self.wfile.write(str(e))
+            elif fmt == "html":
+                html = "<html><body><h4>Output</h4><pre>" \
+                    "%s</pre><pre>%s</pre></body></html>" % \
+                    (stdout, str(e))
+                self.wfile.write(html)
+                print html
+            else:
+                raise NotImplementedError
+
         finally:
             # Restores stdout/stderr #TODO: is this really needed?
             sys.stdout = sys.__stdout__
