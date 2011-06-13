@@ -75,9 +75,9 @@ class PostHandler(BaseHTTPRequestHandler):
         print "Running:\n---\n%s\n---\n format: %s" % (code, fmt)
 
         if fmt == "html":
-            self.wfile.write("<html><body>%s" % index.substitute(
-                dict(code=code)
-            ))
+            self.wfile.write(
+                "<html><head><title>Pyresh</title></head><body>%s" \
+                % index.substitute(dict(code=code)))
         # Intercept stdout/stderr
         stdout = StringIO()
         stderr = StringIO()
