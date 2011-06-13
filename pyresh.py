@@ -10,14 +10,16 @@ Cross-platform remote Python interpreter
 from SocketServer import BaseServer
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SimpleHTTPServer import SimpleHTTPRequestHandler
+from StringIO import StringIO
 from OpenSSL import SSL
 import cgi
-from sys import exit
+import sys
 
 # Certificate file
 PEM = './cert.pem'
 
-#TODO: specify ports, and ipaddr from CLI
+#TODO: specify ports, PEM and ipaddr from CLI
+IPADDR = ''
 HTTP_PORT = 8888
 HTTPS_PORT = 4433
 
@@ -54,26 +56,43 @@ def test(HandlerClass = SecureHTTPRequestHandler,
 
 
 class PostHandler(BaseHTTPRequestHandler):
-    
+
     def do_POST(self):
-        # Parse the form data posted
-        form = cgi.FieldStorage(
-            fp=self.rfile, 
-            headers=self.headers,
-            environ={'REQUEST_METHOD':'POST',
-                     'CONTENT_TYPE':self.headers['Content-Type'],
-                     })
+        """Execute code
+        """
+        post = cgi.FieldStorage()
+        code = post.getfirst("code","")
+        fmt = post.getfirst("format","simple")
+
+        # Intercept stdout/stderr
+        stdout = StringIO()
+        stderr = StringIO()
+        sys.stdout = stdout
+        sys.stderr = stderr
 
         try:
+            exec code
             # Succesful response 
             self.send_response(200)
             self.end_headers()
-            self.wfile.write('Client: %s\n' % str(self.client_address))
+            
+            #TODO: fork and reply to the user while running the code
+            
+            if fmt == "simple":
+                self.wfile.write(stdout.getvalue())
+            elif fmt == "html":
+                html = "<html><body><h4>Output</h4><pre>" \
+                    "%s</pre><pre>%s</pre></body></html>" % \
+                    (stout.getvalue(),stderr.getvalue())
         
         except Exception, e:
             # Execution failurie
             self.send_response(400)
-
+        
+        finally:
+            # Restores stdout/stderr #TODO: is this really needed?
+            sys.stdout = sys.__stdout__
+            sys.stderr = sys.__stderr__
 
 def main():
     server = HTTPServer(('', HTTP_PORT), PostHandler)
