@@ -34,7 +34,7 @@ import ssl
 index = Template("""
     <form name="input" action="/" method="post">
     Code: 
-    <textarea name="code" rows="5" cols="60">$code</textarea>
+    <textarea name="code" rows="15" cols="60">$code</textarea>
     <input type="hidden" name="format" value="html"/>
     <input type="submit" value="Submit" />
     </form>
@@ -86,7 +86,9 @@ class PostHandler(BaseHTTPRequestHandler):
 
         try:
             success = False
+            start_time = time()
             exec code
+            exec_time = (time() - start_time) * 1000
             stdout = stdout.getvalue()
             stderr = stderr.getvalue()
             sys.stdout = sys.__stdout__
@@ -100,8 +102,9 @@ class PostHandler(BaseHTTPRequestHandler):
                 self.wfile.write(stdout)
             elif fmt == "html":
                 html = "<h4>Output</h4><pre>" \
-                    "%s</pre><h4>Stderr</h4><pre>%s</pre></body></html>" % \
-                    (stdout, stderr)
+                    "%s</pre><h4>Stderr</h4><pre>%s</pre> \
+                    <p>Execution time: %.3fms</p></body></html>" % \
+                    (stdout, stderr, exec_time)
                 self.wfile.write(html)
             else:
                 raise NotImplementedError
@@ -134,10 +137,8 @@ class PostHandler(BaseHTTPRequestHandler):
             sys.stderr = sys.__stderr__
 
 def main():
-    
-    server_address = ('', 443) # (address, port)
 
-    if ssl_available and True:
+    if ssl_available:
         server = HTTPServer((IPADDR, HTTPS_PORT), PostHandler)
         server.socket = ssl.wrap_socket(server.socket,
             certfile=PEM, server_side=True)
