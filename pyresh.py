@@ -86,6 +86,7 @@ class PostHandler(BaseHTTPRequestHandler):
                 html = "<html><body><h4>Output</h4><pre>" \
                     "%s</pre><pre>%s</pre></body></html>" % \
                     (stdout.getvalue(),stderr.getvalue())
+                self.wfile.write(html)
             else:
                 raise NotImplementedError
         
