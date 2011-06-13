@@ -21,7 +21,7 @@ except ImportError:
     ssl_available = False
 
 # Certificate file
-PEM = './cert.pem'
+PEM = 'cert.pem'
 
 #TODO: specify ports, PEM and ipaddr from CLI
 IPADDR = '127.0.0.1'
@@ -137,7 +137,7 @@ def main():
     
     server_address = ('', 443) # (address, port)
 
-    if ssl_available and False:
+    if ssl_available and True:
         server = HTTPServer((IPADDR, HTTPS_PORT), PostHandler)
         server.socket = ssl.wrap_socket(server.socket,
             certfile=PEM, server_side=True)
