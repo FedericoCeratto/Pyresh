@@ -1,26 +1,42 @@
+#!/usr/bin/env python
+
+"""
+pyresh - Python Remote SHell
+
+Cross-platform remote Python interpreter
+
+"""
 
 from SocketServer import BaseServer
-from BaseHTTPServer import HTTPServer
+from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from OpenSSL import SSL
+import cgi
+from sys import exit
 
+# Certificate file
+PEM = './cert.pem'
 
-class SecureHTTPServer(HTTPServer):
+#TODO: specify ports, and ipaddr from CLI
+HTTP_PORT = 8888
+HTTPS_PORT = 4433
+
+class HTTPSserver(HTTPServer):
     def __init__(self, server_address, HandlerClass):
         BaseServer.__init__(self, server_address, HandlerClass)
-        ctx = SSL.Context(SSL.SSLv23_METHOD)
-        #server.pem's location (containing the server private key and
-        #the server certificate).
-        fpem = '/path/server.pem'
-        ctx.use_privatekey_file (fpem)
-        ctx.use_certificate_file(fpem)
-        self.socket = SSL.Connection(ctx, socket.socket(self.address_family,
+        try:
+            ctx = SSL.Context(SSL.SSLv23_METHOD)
+            ctx.use_privatekey_file (PEM)
+            ctx.use_certificate_file(fpem)
+            self.socket = SSL.Connection(ctx, socket.socket(self.address_family,
                                                         self.socket_type))
-        self.server_bind()
-        self.server_activate()
+            self.server_bind()
+            self.server_activate()
+        except Exception, e:
+            print e
+            exit(1)
 
-
-class SecureHTTPRequestHandler(SimpleHTTPRequestHandler):
+class HTTPSRequestHandler(SimpleHTTPRequestHandler):
     def setup(self):
         self.connection = self.request
         self.rfile = socket._fileobject(self.request, "rb", self.rbufsize)
@@ -36,13 +52,6 @@ def test(HandlerClass = SecureHTTPRequestHandler,
     httpd.serve_forever()
 
 
-if __name__ == '__main__':
-    test()
-
-
-
-from BaseHTTPServer import BaseHTTPRequestHandler
-import cgi
 
 class PostHandler(BaseHTTPRequestHandler):
     
@@ -55,31 +64,24 @@ class PostHandler(BaseHTTPRequestHandler):
                      'CONTENT_TYPE':self.headers['Content-Type'],
                      })
 
-        # Begin the response
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write('Client: %s\n' % str(self.client_address))
-        self.wfile.write('Path: %s\n' % self.path)
-        self.wfile.write('Form data:\n')
+        try:
+            # Succesful response 
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write('Client: %s\n' % str(self.client_address))
+        
+        except Exception, e:
+            # Execution failurie
+            self.send_response(400)
 
-        # Echo back information about what was posted in the form
-        for field in form.keys():
-            field_item = form[field]
-            if field_item.filename:
-                # The field contains an uploaded file
-                file_data = field_item.file.read()
-                file_len = len(file_data)
-                del file_data
-                self.wfile.write('\tUploaded %s (%d bytes)\n' % (field, 
-                                                                 file_len))
-            else:
-                # Regular form value
-                self.wfile.write('\t%s=%s\n' % (field, form[field].value))
-        return
+
+def main():
+    server = HTTPServer(('', HTTP_PORT), PostHandler)
+    server.serve_forever()
 
 if __name__ == '__main__':
-    from BaseHTTPServer import HTTPServer
-    server = HTTPServer(('localhost', 8080), PostHandler)
-    print 'Starting server, use <Ctrl-C> to stop'
-    server.serve_forever()
+    main()
+
+
+
 
