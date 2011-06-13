@@ -11,57 +11,50 @@ from SocketServer import BaseServer
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SimpleHTTPServer import SimpleHTTPRequestHandler
 from StringIO import StringIO
-from OpenSSL import SSL
 import cgi
 import sys
+
+try:
+    import ssl
+    ssl_available = True
+except ImportError:
+    ssl_available = False
 
 # Certificate file
 PEM = './cert.pem'
 
 #TODO: specify ports, PEM and ipaddr from CLI
-IPADDR = ''
+IPADDR = '127.0.0.1'
 HTTP_PORT = 8888
 HTTPS_PORT = 4433
 
-class HTTPSserver(HTTPServer):
-    def __init__(self, server_address, HandlerClass):
-        BaseServer.__init__(self, server_address, HandlerClass)
-        try:
-            ctx = SSL.Context(SSL.SSLv23_METHOD)
-            ctx.use_privatekey_file (PEM)
-            ctx.use_certificate_file(fpem)
-            self.socket = SSL.Connection(ctx, socket.socket(self.address_family,
-                                                        self.socket_type))
-            self.server_bind()
-            self.server_activate()
-        except Exception, e:
-            print e
-            exit(1)
-
-class HTTPSRequestHandler(SimpleHTTPRequestHandler):
-    def setup(self):
-        self.connection = self.request
-        self.rfile = socket._fileobject(self.request, "rb", self.rbufsize)
-        self.wfile = socket._fileobject(self.request, "wb", self.wbufsize)
-
-
-def test(HandlerClass = SecureHTTPRequestHandler,
-         ServerClass = SecureHTTPServer):
-    server_address = ('', 443) # (address, port)
-    httpd = ServerClass(server_address, HandlerClass)
-    sa = httpd.socket.getsockname()
-    print "Serving HTTPS on", sa[0], "port", sa[1], "..."
-    httpd.serve_forever()
-
-
+import BaseHTTPServer, SimpleHTTPServer
+import ssl
 
 class PostHandler(BaseHTTPRequestHandler):
+
+    def do_GET(self):
+        """
+        """
+        print "GET"
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write("<html><head><title>Pyresh</title></head>")
+        self.wfile.write("""
+        <form name="input" action="/" method="post">
+        Code: <input type="text" name="code" />
+        <input type="submit" value="Submit" />
+        </form>""")
+        self.wfile.write("</body></html>")
+
 
     def do_POST(self):
         """Execute code
         """
         post = cgi.FieldStorage()
         code = post.getfirst("code","")
+        print "Running: '%s'" % code
         fmt = post.getfirst("format","simple")
 
         # Intercept stdout/stderr
@@ -84,6 +77,8 @@ class PostHandler(BaseHTTPRequestHandler):
                 html = "<html><body><h4>Output</h4><pre>" \
                     "%s</pre><pre>%s</pre></body></html>" % \
                     (stout.getvalue(),stderr.getvalue())
+            else:
+                raise NotImplementedError
         
         except Exception, e:
             # Execution failurie
@@ -95,7 +90,18 @@ class PostHandler(BaseHTTPRequestHandler):
             sys.stderr = sys.__stderr__
 
 def main():
-    server = HTTPServer(('', HTTP_PORT), PostHandler)
+    
+    server_address = ('', 443) # (address, port)
+
+    if ssl_available and False:
+        server = HTTPServer((IPADDR, HTTPS_PORT), PostHandler)
+        server.socket = ssl.wrap_socket(server.socket,
+            certfile=PEM, server_side=True)
+    else:
+        server = HTTPServer((IPADDR, HTTP_PORT), PostHandler)
+    
+    sa = server.socket.getsockname()
+    print "Serving HTTPS on", sa[0], "port", sa[1], "..."
     server.serve_forever()
 
 if __name__ == '__main__':
